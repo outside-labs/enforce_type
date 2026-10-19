@@ -104,6 +104,97 @@ def _visit(node: _Node, value, operation: str, mode: str, context: _Context, pat
             if not attempt.issues:
                 return candidate
         return context.fail(path, "union", node.label)
+    if kind in ("list", "tuple", "variadic_tuple"):
+        expected = list if kind == "list" or operation == "load" and mode == "json" else tuple
+        if type(value) is not expected:
+            return context.fail(path, "type", node.label)
+        if len(value) > context.limits.max_items:
+            return context.fail(path, "collection_size", node.label)
+        if kind == "tuple" and len(value) != len(node.children):
+            return context.fail(path, "length", node.label)
+        result = [] if operation != "check" else None
+        for index, item in enumerate(value):
+            if context.full:
+                break
+            child = node.children[index] if kind == "tuple" else node.children[0]
+            converted = _visit(child, item, operation, mode, context, (*path, index), depth + 1)
+            if result is not None:
+                result.append(converted)
+        if operation == "check":
+            return value
+        return tuple(result) if kind != "list" and (operation == "load" or mode == "python") else result
+    if kind == "dict":
+        if type(value) is not dict:
+            return context.fail(path, "type", node.label)
+        if len(value) > context.limits.max_items:
+            return context.fail(path, "collection_size", node.label)
+        result = {} if operation != "check" else None
+        for key, item in value.items():
+            if context.full:
+                break
+            position = (*path, "*")
+            if mode == "json" and (type(key) is not str or not _unicode(key)):
+                context.fail(position, "json_key", "str")
+                continue
+            # Key conversion could collapse distinct entries. Always check native
+            # keys, even when values use JSON representations.
+            checked_key = _visit(node.children[0], key, "check", "python", context, position, depth + 1)
+            converted = _visit(node.children[1], item, operation, mode, context, position, depth + 1)
+            if result is not None and checked_key is not _INVALID and converted is not _INVALID:
+                result[key] = converted
+        return value if operation == "check" else result
+    if kind == "dataclass":
+        if len(node.fields) > context.limits.max_items:
+            return context.fail(path, "collection_size", node.label)
+        if operation == "load" and type(value) is dict:
+            if len(value) > context.limits.max_items:
+                return context.fail(path, "collection_size", node.label)
+            if any(type(key) is not str for key in value):
+                return context.fail(path, "unknown_field", node.label)
+            before = len(context.issues)
+            kwargs = {}
+            names = {field.info.name for field in node.fields}
+            for field in node.fields:
+                if context.full:
+                    break
+                name = field.info.name
+                if name in value:
+                    kwargs[name] = _visit(field.node, value[name], operation, mode, context, (*path, name), depth + 1)
+                elif field.info.required:
+                    context.fail((*path, name), "missing", field.node.label)
+            for key in value:
+                if context.full:
+                    break
+                if key not in names:
+                    context.fail(path, "unknown_field", node.label)
+            if len(context.issues) != before or context.full:
+                return _INVALID
+            try:
+                constructed = node.annotation(**kwargs)
+            except Exception:
+                return context.fail(path, "construction", node.label)
+            _visit(node, constructed, "check", "python", context, path, depth)
+            return constructed
+        if operation == "load":
+            if mode == "python" and isinstance(value, node.annotation):
+                return _visit(node, value, "check", "python", context, path, depth)
+            return context.fail(path, "type", node.label)
+        if not isinstance(value, node.annotation):
+            return context.fail(path, "type", node.label)
+        result = {} if operation == "dump" else None
+        for field in node.fields:
+            if context.full:
+                break
+            name = field.info.name
+            try:
+                item = getattr(value, name)
+            except Exception:
+                context.fail((*path, name), "attribute", field.node.label)
+                continue
+            converted = _visit(field.node, item, operation, mode, context, (*path, name), depth + 1)
+            if result is not None:
+                result[name] = converted
+        return value if operation == "check" else result
     raise SchemaError("Unsupported compiled node.")
 
 
