@@ -79,8 +79,6 @@ class _Compiler:
                 raise SchemaError("Dataclass annotations and constructor must be resolvable.") from None
             compiled = []
             for item in fields(annotation):
-                if not item.init:
-                    raise SchemaError("init=False fields are not supported yet.")
                 if "enforce_type" in item.metadata:
                     raise SchemaError("enforce_type field metadata is not supported in this release.")
                 required = item.init and item.default is MISSING and item.default_factory is MISSING
@@ -91,7 +89,8 @@ class _Compiler:
                 p.kind not in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY) for p in signature.parameters.values()
             ):
                 raise SchemaError("InitVars and incompatible constructor signatures are unsupported.")
-            return _Node("dataclass", annotation, annotation.__name__, fields=tuple(compiled))
+            return _Node("dataclass", annotation, annotation.__name__, fields=tuple(compiled),
+                         field_names=frozenset(field.info.name for field in compiled))
         raise SchemaError("Unsupported annotation; no implicit Any fallback is available.")
 
     @staticmethod

@@ -33,6 +33,34 @@ def _unicode(value: str) -> bool:
     return True
 
 
+def _load_fields(node, value, mode, context, path=(), depth=0, *, partial=False):
+    if type(value) is not dict:
+        return context.fail(path, "type", node.label)
+    if len(value) > context.limits.max_items:
+        return context.fail(path, "collection_size", node.label)
+    if any(type(key) is not str for key in value):
+        return context.fail(path, "unknown_field", node.label)
+    before = len(context.issues)
+    result = {}
+    for field in node.fields:
+        if context.full:
+            break
+        name = field.info.name
+        if name in value:
+            if not field.info.init:
+                context.fail((*path, name), "init_field", field.node.label)
+            else:
+                result[name] = _visit(field.node, value[name], "load", mode, context, (*path, name), depth + 1)
+        elif field.info.required and not partial:
+            context.fail((*path, name), "missing", field.node.label)
+    for key in value:
+        if context.full:
+            break
+        if key not in node.field_names:
+            context.fail(path, "unknown_field", node.label)
+    return _INVALID if len(context.issues) != before or context.full else result
+
+
 def _visit(node: _Node, value, operation: str, mode: str, context: _Context, path=(), depth=0):
     if context.full:
         return _INVALID
@@ -147,27 +175,8 @@ def _visit(node: _Node, value, operation: str, mode: str, context: _Context, pat
         if len(node.fields) > context.limits.max_items:
             return context.fail(path, "collection_size", node.label)
         if operation == "load" and type(value) is dict:
-            if len(value) > context.limits.max_items:
-                return context.fail(path, "collection_size", node.label)
-            if any(type(key) is not str for key in value):
-                return context.fail(path, "unknown_field", node.label)
-            before = len(context.issues)
-            kwargs = {}
-            names = {field.info.name for field in node.fields}
-            for field in node.fields:
-                if context.full:
-                    break
-                name = field.info.name
-                if name in value:
-                    kwargs[name] = _visit(field.node, value[name], operation, mode, context, (*path, name), depth + 1)
-                elif field.info.required:
-                    context.fail((*path, name), "missing", field.node.label)
-            for key in value:
-                if context.full:
-                    break
-                if key not in names:
-                    context.fail(path, "unknown_field", node.label)
-            if len(context.issues) != before or context.full:
+            kwargs = _load_fields(node, value, mode, context, path, depth)
+            if kwargs is _INVALID:
                 return _INVALID
             try:
                 constructed = node.annotation(**kwargs)
@@ -206,3 +215,15 @@ def execute(node: _Node, value, operation: str, mode: str, limits: Limits):
     if context.issues:
         raise ValidationError(*context.issues) from None
     return value if operation == "check" else result
+
+
+def execute_partial(node: _Node, value, mode: str, limits: Limits):
+    if node.kind != "dataclass":
+        raise SchemaError("load_partial requires a dataclass plan.")
+    if mode not in ("json", "python"):
+        raise SchemaError("mode must be 'json' or 'python'.")
+    context = _Context(limits)
+    result = _load_fields(node, value, mode, context, partial=True)
+    if context.issues:
+        raise ValidationError(*context.issues) from None
+    return result
