@@ -18,7 +18,7 @@ class Issue:
 
 
 class ValidationError(ValueError):
-    """Validation issues; inputs and dynamic dictionary keys are never stored."""
+    """Issue data omits submitted values and dynamic dictionary keys."""
 
     def __init__(self, *issues: Issue):
         self._issues = tuple(issues)
