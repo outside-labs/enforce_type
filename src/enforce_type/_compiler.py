@@ -3,7 +3,7 @@
 import inspect
 import math
 import types
-from dataclasses import MISSING, fields, is_dataclass
+from dataclasses import MISSING, fields, is_dataclass, replace
 from enum import Enum
 from typing import Literal, Union, get_args, get_origin, get_type_hints
 from uuid import UUID
@@ -32,9 +32,18 @@ class _Compiler:
         if annotation in active:
             raise SchemaError("Recursive type graphs are not supported.")
         if annotation in self.memo:
-            return self.memo[annotation]
+            cached = self.memo[annotation]
+            if depth + cached.height > _MAX_SCHEMA_DEPTH:
+                raise SchemaError("Schema nesting exceeds the compilation limit.")
+            return cached
         active = active | {annotation}
         node = self._node(annotation, active, depth)
+        heights = [child.height + 1 for child in node.children]
+        heights.extend(field.node.height + 1 for field in node.fields)
+        height = max(heights, default=0)
+        if depth + height > _MAX_SCHEMA_DEPTH:
+            raise SchemaError("Schema nesting exceeds the compilation limit.")
+        node = replace(node, height=height)
         self.memo[annotation] = node
         return node
 
