@@ -35,6 +35,7 @@ class _Node:
     choices: tuple[object, ...] = ()
     fields: tuple[_FieldNode, ...] = ()
     field_names: frozenset[str] = frozenset()
+    height: int = 0
 
 
 @dataclass(frozen=True, slots=True)

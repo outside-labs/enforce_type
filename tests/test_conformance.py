@@ -156,6 +156,19 @@ class ConformanceTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             compile_type(dict[str, int]).load(DictionaryTrap(one=1))
 
+    def test_cached_subtrees_cannot_bypass_schema_depth_limit(self):
+        shared, value = int, 1
+        for _ in range(20):
+            shared, value = list[shared], [value]
+        nested = shared
+        for _ in range(50):
+            nested = list[nested]
+        with self.assertRaises(SchemaError):
+            compile_type(tuple[shared, nested])
+        schema = compile_type(tuple[shared, shared])
+        pair = (value, value)
+        self.assertIs(schema.check(pair), pair)
+
     def test_model_subclasses_only_dump_declared_fields(self):
         @dataclass
         class Base:
