@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import cast
 
-from ._engine import execute
+from ._engine import execute, execute_partial
 from ._nodes import FieldInfo, Limits, _Node
 
 
@@ -33,3 +33,7 @@ class TypePlan[T]:
     def dump(self, value: T, *, mode: str = "json") -> object:
         """Validate and serialize a native value into JSON or Python data."""
         return execute(self._root, value, "dump", mode, self.limits)
+
+    def load_partial(self, data: object, *, mode: str = "json") -> dict[str, object]:
+        """Load supplied dataclass fields without constructing the root model."""
+        return execute_partial(self._root, data, mode, self.limits)
