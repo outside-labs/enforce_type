@@ -15,7 +15,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = {"__init__.py", "_compiler.py", "_engine.py", "_nodes.py", "constraints.py", "errors.py", "plans.py", "py.typed"}
+MODULES = {"__init__.py", "_coercion.py", "_compiler.py", "_engine.py", "_nodes.py", "constraints.py", "errors.py", "plans.py", "py.typed"}
 
 
 def run(*args, cwd=ROOT):

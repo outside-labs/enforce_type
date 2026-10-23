@@ -6,6 +6,8 @@
   values, dictionary keys and constructed dataclass results.
 - Support namespaced dataclass field constraints with configuration snapshots,
   composition with Annotated rules and partial-input validation.
+- Add explicit scalar loading conversions for signed decimal integers, finite
+  floats and exact boolean strings; keep check/dump and dictionary keys strict.
 
 ## 0.1.0 — 2026-10-19
 
