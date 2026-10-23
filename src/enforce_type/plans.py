@@ -13,6 +13,7 @@ class TypePlan[T]:
 
     _root: _Node
     limits: Limits
+    coerce: bool = False
 
     @property
     def annotation(self) -> object:
@@ -28,7 +29,7 @@ class TypePlan[T]:
 
     def load(self, data: object, *, mode: str = "json") -> T:
         """Construct from decoded JSON-shaped data or explicit native input."""
-        return cast(T, execute(self._root, data, "load", mode, self.limits))
+        return cast(T, execute(self._root, data, "load", mode, self.limits, coerce=self.coerce))
 
     def dump(self, value: T, *, mode: str = "json") -> object:
         """Validate and serialize a native value into JSON or Python data."""
@@ -36,4 +37,4 @@ class TypePlan[T]:
 
     def load_partial(self, data: object, *, mode: str = "json") -> dict[str, object]:
         """Load supplied dataclass fields without constructing the root model."""
-        return execute_partial(self._root, data, mode, self.limits)
+        return execute_partial(self._root, data, mode, self.limits, coerce=self.coerce)

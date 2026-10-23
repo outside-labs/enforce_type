@@ -4,6 +4,7 @@ import math
 from dataclasses import dataclass, field
 from uuid import UUID
 
+from ._coercion import convert
 from ._nodes import Limits, _Node
 from .constraints import Length, Max, Min
 from .errors import Issue, SchemaError, ValidationError
@@ -14,6 +15,7 @@ _INVALID = object()
 @dataclass(slots=True)
 class _Context:
     limits: Limits
+    coerce: bool = False
     issues: list[Issue] = field(default_factory=list)
 
     @property
@@ -100,6 +102,13 @@ def _visit(node: _Node, value, operation: str, mode: str, context: _Context, pat
                 context.fail(path, "max", node.label)
         return result
     if kind == "scalar":
+        if operation == "load" and context.coerce:
+            try:
+                value = convert(node.annotation, value)
+            except OverflowError:
+                return context.fail(path, "finite", node.label)
+            except ValueError:
+                return context.fail(path, "coercion", node.label)
         if node.annotation is float:
             if operation == "load" and mode == "json" and type(value) in (int, float):
                 try:
@@ -146,7 +155,7 @@ def _visit(node: _Node, value, operation: str, mode: str, context: _Context, pat
         return value
     if kind == "literal":
         for choice, child in zip(node.choices, node.children):
-            attempt = _Context(context.limits)
+            attempt = _Context(context.limits, coerce=context.coerce)
             candidate = _visit(child, value, operation, mode, attempt, path, depth)
             if attempt.issues:
                 continue
@@ -159,7 +168,7 @@ def _visit(node: _Node, value, operation: str, mode: str, context: _Context, pat
         return context.fail(path, "literal", node.label)
     if kind == "union":
         for child in node.children:
-            attempt = _Context(context.limits)
+            attempt = _Context(context.limits, coerce=context.coerce)
             candidate = _visit(child, value, operation, mode, attempt, path, depth)
             if not attempt.issues:
                 return candidate
@@ -239,22 +248,22 @@ def _visit(node: _Node, value, operation: str, mode: str, context: _Context, pat
     raise SchemaError("Unsupported compiled node.")
 
 
-def execute(node: _Node, value, operation: str, mode: str, limits: Limits):
+def execute(node: _Node, value, operation: str, mode: str, limits: Limits, *, coerce=False):
     if mode not in ("json", "python"):
         raise SchemaError("mode must be 'json' or 'python'.")
-    context = _Context(limits)
+    context = _Context(limits, coerce=coerce)
     result = _visit(node, value, operation, mode, context)
     if context.issues:
         raise ValidationError(*context.issues) from None
     return value if operation == "check" else result
 
 
-def execute_partial(node: _Node, value, mode: str, limits: Limits):
+def execute_partial(node: _Node, value, mode: str, limits: Limits, *, coerce=False):
     if node.kind != "dataclass":
         raise SchemaError("load_partial requires a dataclass plan.")
     if mode not in ("json", "python"):
         raise SchemaError("mode must be 'json' or 'python'.")
-    context = _Context(limits)
+    context = _Context(limits, coerce=coerce)
     result = _load_fields(node, value, mode, context, partial=True)
     if context.issues:
         raise ValidationError(*context.issues) from None

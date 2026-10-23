@@ -162,10 +162,12 @@ class _Compiler:
         return node.kind == "union" and all(_Compiler._key_type(child) for child in node.children)
 
 
-def compile_type[T](annotation: type[T], *, limits: Limits | None = None) -> TypePlan[T]:
+def compile_type[T](annotation: type[T], *, limits: Limits | None = None, coerce: bool = False) -> TypePlan[T]:
     """Compile a trusted Python annotation into an independent immutable plan."""
     if limits is None:
         limits = Limits()
     if type(limits) is not Limits:
         raise SchemaError("limits must be a Limits instance.")
-    return TypePlan(_Compiler().compile(annotation), limits)
+    if type(coerce) is not bool:
+        raise SchemaError("coerce must be a bool.")
+    return TypePlan(_Compiler().compile(annotation), limits, coerce)

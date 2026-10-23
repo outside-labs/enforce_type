@@ -3,6 +3,9 @@
 Independent pure-Python compiled validation for ordinary type annotations.
 Python 3.14+, no runtime dependencies, no required model base class.
 
+Constraints and opt-in coercion described below are unreleased development APIs.
+PyPI 0.1.0 provides the core validation operations.
+
 ```sh
 python -m pip install enforce-type==0.1.0
 ```
@@ -41,7 +44,9 @@ batches are future work. No thread or event loop starts automatically.
 
 `load` and `dump` also accept `mode="python"`. The default JSON mode operates on
 decoded Python data; it does not parse JSON text or enforce HTTP/media/body rules.
-`check` always validates native Python types without conversion. Mutable dataclass
+`check` always validates native Python types without conversion. Optional scalar
+loading conversions require `compile_type(..., coerce=True)` as documented below.
+Mutable dataclass
 assignments are not automatically enforced; call a plan at the desired boundary.
 
 ```python
@@ -71,7 +76,7 @@ assert point.load([12.5, 17.2]) == (12.5, 17.2)
 | `dict[K, V]` | Built-in dictionary with supported scalar keys | Keys must actually be strings |
 | dataclass | Instance with valid declared fields | Construct from / serialize to a field dictionary |
 
-Primitive rules are strict. `True` does not pass for `int`, and `"42"` does not
+Primitive rules are strict by default. `True` does not pass for `int`, and `"42"` does not
 become an integer. A native float contract rejects integer objects during `check`,
 Python-mode load, and dump. JSON loading accepts an integer number for a float
 field and returns a float. NaN and infinity are rejected in every mode.
@@ -93,7 +98,7 @@ system; prefer unambiguous contracts.
 Unsupported annotations raise `SchemaError` at compilation. The initial release
 rejects Any, bare containers, empty-tuple annotations, sets, abstract collections,
 TypedDict, TypeVar/generic models, PEP 695 alias objects, NewType, Callable/Protocol,
-recursive models and general coercion. Assignment aliases
+recursive models and conversions beyond the explicit scalar table below. Assignment aliases
 that already resolve to supported types work. There is no implicit Any fallback.
 
 ## Ordinary dataclasses
@@ -181,6 +186,44 @@ read/write visibility are caller-owned policies. All declared fields are include
 in dump. Unrelated dataclass metadata is ignored; unsupported keys or malformed
 configuration in the `enforce_type` namespace raise `SchemaError`.
 
+## Explicit scalar loading conversions
+
+```python
+counts = compile_type(Annotated[int, Min(0)], coerce=True)
+assert counts.load("42") == 42
+assert counts.load("42", mode="python") == 42
+```
+
+`coerce` must be an actual boolean and defaults to `False`. When enabled it applies
+to scalar values throughout `load` and supplied `load_partial` fields in either
+mode. `check` and `dump` always require native values. Defaults, factory results,
+post-init fields and existing Python-mode dataclass instances are checked strictly.
+Constraints run after scalar conversion.
+
+| Target | Additional accepted inputs with `coerce=True` |
+| --- | --- |
+| `int` | ASCII decimal strings with an optional `+`/`-` sign, including leading zeros |
+| `float` | Native integers or ASCII decimal/exponent strings such as `"1"`, `"-.5"`, `"1."`, `"2e3"` |
+| `bool` | Exactly `"true"` and `"false"` |
+| Other types | No additional conversions |
+
+Finite-float rules still apply, including overflow after conversion. Float
+rounding and underflow follow Python's ordinary float behavior. Integer text
+conversion respects Python's configured decimal-digit limit; conversion failures
+produce value-free `coercion` issues. Non-finite float results produce `finite`.
+
+Whitespace, underscores, non-ASCII digits, hexadecimal numbers, named infinity/NaN,
+float-to-int truncation, number/bool interchange and arbitrary object conversion
+callbacks are refused. String/numeric subclasses are not converted. Containers
+keep their existing Python/JSON representation rules. Dictionary keys are always
+checked without conversion. UUIDs, enums and `None` keep their existing mode rules.
+
+Unions still select the first successful branch in Python typing order, including
+each branch's enabled conversions and constraints. For example, `int | str` can
+load `"12"` as `12`, while `str | int` preserves `"12"`. Literal choices use the
+same scalar conversions followed by type-sensitive choice matching. Use
+unambiguous contracts when a serialized string must retain its type.
+
 ## Structured errors and bounds
 
 ```python
@@ -203,6 +246,8 @@ applications should not expose traceback locals to clients.
 Codes include type, missing, unknown_field, init_field, length, finite, uuid,
 unicode, enum, literal, union, json_key, depth, collection_size, construction and
 attribute. Invalid schema/configuration raises `SchemaError` separately.
+Constraint codes are `min`, `max`, `min_length`, `max_length`; explicitly enabled
+scalar text conversions also use `coercion`.
 
 Default limits are depth 32, 1,000 entries per container or full-model fields, and
 20 issues per call. Oversized structures fail before element traversal; reaching
@@ -229,7 +274,7 @@ Release publishing uses `release.yaml`, environment `pypi` and OIDC; verified
 artifacts are the exact uploaded files.
 
 The [Project](https://github.com/orgs/outside-labs/projects/15) and
-[issues](https://github.com/outside-labs/enforce_type/issues) track future constraints,
-coercion, broader typing, async rules/batches, function enforcement and JSON Schema.
+[issues](https://github.com/outside-labs/enforce_type/issues) track broader typing,
+async rules/batches, function enforcement and JSON Schema.
 The package remains independent of expose-api and its validation infrastructure.
 License terms have not yet been specified.
