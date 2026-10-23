@@ -133,7 +133,7 @@ class ModelTests(unittest.TestCase):
             value: Annotated[int, "constraint"]
         @dataclass
         class Metadata:
-            value: int = field(metadata={"enforce_type": {"min": 0}})
+            value: int = field(metadata={"enforce_type": {"unknown": 0}})
         for model in (Recursive, WithInitVar, Constrained, Metadata, Address("x")):
             with self.subTest(model=model), self.assertRaises(SchemaError):
                 compile_type(model)

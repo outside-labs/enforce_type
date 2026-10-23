@@ -17,6 +17,21 @@ _PRIMITIVES = {str: "str", bool: "bool", int: "int", float: "float", type(None):
 _MAX_SCHEMA_DEPTH = 64
 
 
+def _metadata_rules(metadata):
+    if type(metadata) not in (dict, types.MappingProxyType) or any(
+        type(key) is not str or key not in ("min", "max", "min_length", "max_length") for key in metadata
+    ):
+        raise SchemaError("enforce_type metadata requires a mapping of supported constraint names.")
+    rules = []
+    if "min" in metadata:
+        rules.append(Min(metadata["min"]))
+    if "max" in metadata:
+        rules.append(Max(metadata["max"]))
+    if "min_length" in metadata or "max_length" in metadata:
+        rules.append(Length(min=metadata.get("min_length", 0), max=metadata.get("max_length")))
+    return tuple(rules)
+
+
 def _constrain(node, rules, annotation):
     if node.kind == "constrained":
         rules = node.rules + rules
@@ -121,11 +136,14 @@ class _Compiler:
                 raise SchemaError("Dataclass annotations and constructor must be resolvable.") from None
             compiled = []
             for item in fields(annotation):
-                if "enforce_type" in item.metadata:
-                    raise SchemaError("enforce_type field metadata is not supported in this release.")
                 required = item.init and item.default is MISSING and item.default_factory is MISSING
                 info = FieldInfo(item.name, hints[item.name], required, item.init, item.default_factory is not MISSING)
-                compiled.append(_FieldNode(info, self.compile(hints[item.name], active, depth + 1)))
+                field_node = self.compile(hints[item.name], active, depth + 1)
+                if "enforce_type" in item.metadata:
+                    rules = _metadata_rules(item.metadata["enforce_type"])
+                    if rules:
+                        field_node = _constrain(field_node, rules, hints[item.name])
+                compiled.append(_FieldNode(info, field_node))
             initializable = {field.info.name for field in compiled if field.info.init}
             if set(signature.parameters) != initializable or any(
                 p.kind not in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY) for p in signature.parameters.values()
