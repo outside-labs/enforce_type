@@ -4,6 +4,8 @@
 
 - Compile immutable Annotated numeric and length constraints, including nested
   values, dictionary keys and constructed dataclass results.
+- Support namespaced dataclass field constraints with configuration snapshots,
+  composition with Annotated rules and partial-input validation.
 
 ## 0.1.0 — 2026-10-19
 

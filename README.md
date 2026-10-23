@@ -156,11 +156,30 @@ time. Apply rules inside nullable/union branches, such as
 `Annotated[int, Min(0)] | None`. Error codes are `min`, `max`, `min_length` and
 `max_length`, with static expected-type labels that omit inputs and bounds.
 
+Ordinary dataclass fields also accept namespaced rules:
+
+```python
+from dataclasses import field
+
+@dataclass
+class Stock:
+    quantity: int = field(metadata={"enforce_type": {"min": 0, "max": 999}})
+    name: str = field(metadata={"enforce_type": {"min_length": 1, "max_length": 100}})
+```
+
+The namespace accepts a built-in dictionary or `MappingProxyType` with only
+`min`, `max`, `min_length` and `max_length` keys. An empty mapping adds no rules.
+Metadata constraints compose with Annotated constraints, which run first;
+metadata numeric rules then run in min/max order, followed by length rules.
+Compilation snapshots the configuration, so later metadata edits do not change
+an existing plan. The same rules validate supplied partial fields, defaults,
+factories, post-init results and computed `init=False` fields. Partial loading
+still does not construct the root model or fill omitted fields.
+
 An `id` is an ordinary field. Persistence, immutable identities, authorization and
 read/write visibility are caller-owned policies. All declared fields are included
-in dump. Unrelated dataclass metadata is ignored; the `enforce_type` metadata
-namespace is reserved and currently rejected rather than silently appearing
-enforced.
+in dump. Unrelated dataclass metadata is ignored; unsupported keys or malformed
+configuration in the `enforce_type` namespace raise `SchemaError`.
 
 ## Structured errors and bounds
 
