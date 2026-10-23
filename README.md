@@ -93,7 +93,7 @@ system; prefer unambiguous contracts.
 Unsupported annotations raise `SchemaError` at compilation. The initial release
 rejects Any, bare containers, empty-tuple annotations, sets, abstract collections,
 TypedDict, TypeVar/generic models, PEP 695 alias objects, NewType, Callable/Protocol,
-recursive models, Annotated constraints and general coercion. Assignment aliases
+recursive models and general coercion. Assignment aliases
 that already resolve to supported types work. There is no implicit Any fallback.
 
 ## Ordinary dataclasses
@@ -128,11 +128,39 @@ updated = replace(user, **changes)
 users.check(updated)
 ```
 
+## Annotation constraints
+
+Use immutable `Min`, `Max` and `Length` rules with `typing.Annotated`:
+
+```python
+from typing import Annotated
+from enforce_type import Length, Max, Min
+
+quantity = compile_type(Annotated[int, Min(0), Max(999)])
+name = compile_type(Annotated[str, Length(min=1, max=100)])
+assert quantity.load(12) == 12
+assert name.check("Ella") == "Ella"
+```
+
+`Min` and `Max` are inclusive finite numeric bounds for `int` or `float`.
+`Length(min=0, max=None)` counts Unicode code points for strings and entries for
+supported lists, tuples and dictionaries. Rules apply to every operation,
+including nested values, dictionary keys, defaults and post-init results. Bounds
+apply to native values after JSON conversion. Length failures prevent element
+construction; configured item limits still take precedence. Annotated wrappers
+do not consume extra runtime depth.
+
+Rules compose in declaration order. Invalid configurations, contradictory bounds,
+inapplicable rules and unknown Annotated metadata raise `SchemaError` at compile
+time. Apply rules inside nullable/union branches, such as
+`Annotated[int, Min(0)] | None`. Error codes are `min`, `max`, `min_length` and
+`max_length`, with static expected-type labels that omit inputs and bounds.
+
 An `id` is an ordinary field. Persistence, immutable identities, authorization and
 read/write visibility are caller-owned policies. All declared fields are included
 in dump. Unrelated dataclass metadata is ignored; the `enforce_type` metadata
-namespace and Annotated rules are reserved and currently rejected rather than
-silently appearing enforced.
+namespace is reserved and currently rejected rather than silently appearing
+enforced.
 
 ## Structured errors and bounds
 

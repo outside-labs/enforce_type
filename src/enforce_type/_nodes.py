@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from .constraints import Length, Max, Min
 from .errors import SchemaError
 
 
@@ -36,6 +37,7 @@ class _Node:
     fields: tuple[_FieldNode, ...] = ()
     field_names: frozenset[str] = frozenset()
     height: int = 0
+    rules: tuple[Min | Max | Length, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
