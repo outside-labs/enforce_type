@@ -5,15 +5,46 @@ import math
 import types
 from dataclasses import MISSING, fields, is_dataclass, replace
 from enum import Enum
-from typing import Literal, Union, get_args, get_origin, get_type_hints
+from typing import Annotated, Literal, Union, get_args, get_origin, get_type_hints
 from uuid import UUID
 
 from ._nodes import FieldInfo, Limits, _FieldNode, _Node
+from .constraints import Length, Max, Min
 from .errors import SchemaError
 from .plans import TypePlan
 
 _PRIMITIVES = {str: "str", bool: "bool", int: "int", float: "float", type(None): "None"}
 _MAX_SCHEMA_DEPTH = 64
+
+
+def _constrain(node, rules, annotation):
+    if node.kind == "constrained":
+        rules = node.rules + rules
+        node = node.children[0]
+    for rule in rules:
+        if type(rule) in (Min, Max):
+            if node.kind != "scalar" or node.annotation not in (int, float):
+                raise SchemaError("Numeric constraints require an int or float annotation.")
+        elif type(rule) is Length:
+            if not (node.kind == "scalar" and node.annotation is str or
+                    node.kind in ("list", "tuple", "variadic_tuple", "dict")):
+                raise SchemaError("Length constraints require a string or supported collection.")
+        else:
+            raise SchemaError("Unsupported Annotated constraint.")
+    lower = [rule.value for rule in rules if type(rule) is Min]
+    upper = [rule.value for rule in rules if type(rule) is Max]
+    lengths = [rule for rule in rules if type(rule) is Length]
+    if lower and upper and max(lower) > min(upper):
+        raise SchemaError("Numeric constraints have conflicting bounds.")
+    if lengths:
+        minimum = max(rule.min for rule in lengths)
+        maximums = [rule.max for rule in lengths if rule.max is not None]
+        if maximums and minimum > min(maximums):
+            raise SchemaError("Length constraints have conflicting bounds.")
+        if node.kind == "tuple" and (len(node.children) < minimum or
+                                      maximums and len(node.children) > min(maximums)):
+            raise SchemaError("Length constraints conflict with the fixed tuple size.")
+    return _Node("constrained", annotation, node.label, (node,), height=node.height + 1, rules=rules)
 
 
 class _Compiler:
@@ -53,6 +84,8 @@ class _Compiler:
         if annotation is UUID:
             return _Node("uuid", annotation, "UUID")
         origin, args = get_origin(annotation), get_args(annotation)
+        if origin is Annotated:
+            return _constrain(self.compile(args[0], active, depth + 1), args[1:], annotation)
         if origin in (Union, types.UnionType):
             return _Node("union", annotation, "union", tuple(self.compile(a, active, depth + 1) for a in args))
         if origin is Literal and args:
@@ -104,6 +137,8 @@ class _Compiler:
 
     @staticmethod
     def _key_type(node):
+        if node.kind == "constrained":
+            return _Compiler._key_type(node.children[0])
         if node.kind in ("scalar", "uuid", "enum", "literal"):
             return True
         return node.kind == "union" and all(_Compiler._key_type(child) for child in node.children)

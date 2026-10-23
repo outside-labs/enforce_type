@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Compile immutable Annotated numeric and length constraints, including nested
+  values, dictionary keys and constructed dataclass results.
+
 ## 0.1.0 — 2026-10-19
 
 - Immutable compiled type plans with strict native checks and explicit JSON/Python

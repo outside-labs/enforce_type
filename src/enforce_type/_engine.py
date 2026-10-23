@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from ._nodes import Limits, _Node
+from .constraints import Length, Max, Min
 from .errors import Issue, SchemaError, ValidationError
 
 _INVALID = object()
@@ -67,6 +68,37 @@ def _visit(node: _Node, value, operation: str, mode: str, context: _Context, pat
     if depth > context.limits.max_depth:
         return context.fail(path, "depth", node.label)
     kind = node.kind
+    if kind == "constrained":
+        child = node.children[0]
+        expected = {"list": list, "dict": dict, "tuple": tuple, "variadic_tuple": tuple}.get(child.kind)
+        if child.kind in ("tuple", "variadic_tuple") and operation == "load" and mode == "json":
+            expected = list
+        if child.kind == "scalar" and child.annotation is str:
+            expected = str
+        # Reject invalid collection lengths before constructing their elements.
+        if expected is not None and type(value) is expected:
+            if child.kind != "scalar" and len(value) > context.limits.max_items:
+                return context.fail(path, "collection_size", node.label)
+            before = len(context.issues)
+            for rule in node.rules:
+                if type(rule) is Length:
+                    if len(value) < rule.min:
+                        context.fail(path, "min_length", node.label)
+                    elif rule.max is not None and len(value) > rule.max:
+                        context.fail(path, "max_length", node.label)
+            if len(context.issues) != before:
+                return _INVALID
+        before = len(context.issues)
+        result = _visit(child, value, operation, mode, context, path, depth)
+        if len(context.issues) != before or result is _INVALID:
+            return _INVALID
+        candidate = result if operation == "load" else value
+        for rule in node.rules:
+            if type(rule) is Min and candidate < rule.value:
+                context.fail(path, "min", node.label)
+            elif type(rule) is Max and candidate > rule.value:
+                context.fail(path, "max", node.label)
+        return result
     if kind == "scalar":
         if node.annotation is float:
             if operation == "load" and mode == "json" and type(value) in (int, float):
