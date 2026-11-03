@@ -277,4 +277,6 @@ The [Project](https://github.com/orgs/outside-labs/projects/15) and
 [issues](https://github.com/outside-labs/enforce_type/issues) track broader typing,
 async rules/batches, function enforcement and JSON Schema.
 The package remains independent of expose-api and its validation infrastructure.
+The selected [optional expose-api adapter contract](docs/expose-api.md) keeps
+resource policy in expose-api and reuses the published synchronous value APIs.
 License terms have not yet been specified.
