@@ -7,7 +7,7 @@ Distribution: `enforce-type`; import: `enforce_type`; initial version: `0.1.0`.
 2. Run `uv run --frozen python scripts/check_distribution.py --tag v0.1.0 --output-dir /path/to/new/candidate`.
    Verify version, metadata, exact file allowlists, installed tests/examples and
    source rebuild parity. Review the printed SHA256 receipts.
-3. Confirm the PyPI Trusted Publisher uses owner `outside-labs`, repository
+3. Confirm the PyPI Trusted Publisher uses owner `wispsy`, repository
    `enforce_type`, workflow `release.yaml` and environment `pypi`.
 4. The GitHub `pypi` environment permits only the `v0.1.0` tag. Future releases need
    their intended tag allowed before publication.

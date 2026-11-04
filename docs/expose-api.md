@@ -28,8 +28,8 @@ the published release. The adapter must additionally prove complete model,
 HTTP, protected-resource, checked-storage and installed-artifact acceptance.
 Creating a protected principal view must retain the selected schema.
 
-Assessment sources: [enforce-type 0.1.0](https://github.com/outside-labs/enforce_type/tree/v0.1.0)
-and [accepted expose-api model contract](https://github.com/outside-labs/expose_api/blob/5d284e18bce7ae9f07ba64ac9297dad55a3fc5b1/src/expose_api/models.py).
+Assessment sources: [enforce-type 0.1.0](https://github.com/wispsy/enforce_type/tree/v0.1.0)
+and [accepted expose-api model contract](https://github.com/wispsy/expose_api/blob/5d284e18bce7ae9f07ba64ac9297dad55a3fc5b1/src/expose_api/models.py).
 Selection and follow-up acceptance are tracked by
-[API-01](https://github.com/outside-labs/enforce_type/issues/14) and
-[VAL-01–04](https://github.com/outside-labs/expose_api/issues/52).
+[API-01](https://github.com/wispsy/enforce_type/issues/14) and
+[VAL-01–04](https://github.com/wispsy/expose_api/issues/52).

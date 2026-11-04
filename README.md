@@ -273,8 +273,8 @@ distribution, and run independent wheel/source installations outside the checkou
 Release publishing uses `release.yaml`, environment `pypi` and OIDC; verified
 artifacts are the exact uploaded files.
 
-The [Project](https://github.com/orgs/outside-labs/projects/15) and
-[issues](https://github.com/outside-labs/enforce_type/issues) track broader typing,
+The [Project](https://github.com/orgs/wispsy/projects/15) and
+[issues](https://github.com/wispsy/enforce_type/issues) track broader typing,
 async rules/batches, function enforcement and JSON Schema.
 The package remains independent of expose-api and its validation infrastructure.
 The selected [optional expose-api adapter contract](docs/expose-api.md) keeps
